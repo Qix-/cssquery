@@ -90,9 +90,13 @@ def _transform(step, obj, fns):
     if op == OP.CHILD:
         for child in _all_children(obj, fns['childfn']):
             yield child
-    elif op == OP.CHILD_DIRECT:
-        for child in fns['childfn'](obj) or ():
+    elif op == OP.ANY:
+        for child in obj:
             yield child
+    elif op == OP.CHILD_DIRECT:
+        for child in obj:
+            for dchild in fns['childfn'](child) or ():
+                yield dchild
     elif op == OP.TAG:
         for child in obj:
             if fns['tagfn'](child) == value:

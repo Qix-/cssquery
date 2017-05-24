@@ -5,6 +5,8 @@ from .error import CssQueryError
 
 
 OP = enum(
+    'ANY',
+
     'TAG',
     'CLASS',
     'ID',
@@ -123,6 +125,7 @@ def parse_selector(itr, terminator, selectors=None):
         elif itr.name is 'PLUS':
             if pushed_child:
                 selectors.pop()
+                pushed_child = False
             selectors.append((OP.SIBLING_DIRECT,))
             itr.next()
             itr.burn('WS')
@@ -130,6 +133,7 @@ def parse_selector(itr, terminator, selectors=None):
         elif itr.name is 'GT':
             if pushed_child:
                 selectors.pop()
+                pushed_child = False
             selectors.append((OP.CHILD_DIRECT,))
             itr.next()
             itr.burn('WS')
@@ -137,12 +141,13 @@ def parse_selector(itr, terminator, selectors=None):
         elif itr.name is 'TILDE':
             if pushed_child:
                 selectors.pop()
+                pushed_child = False
             selectors.append((OP.SIBLING,))
             itr.next()
             itr.burn('WS')
             continue
         elif itr.name is 'STAR':
-            selectors.append((OP.CHILD,))
+            selectors.append((OP.ANY,))
         elif itr.name is 'IDENT':
             selectors.append((OP.TAG, itr.value))
         elif itr.name is 'SHARP':

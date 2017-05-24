@@ -19,6 +19,16 @@ def _f_nth(obj, args):
             i += 1
 
 
+def _f_attr(obj, args):
+    for o in obj:
+        if type(o) is dict:
+            v = o.get(args, None)
+        else:
+            v = getattr(o, args, None)
+        if v is not None:
+            yield v
+
+
 PSEUDO = {
     'first': _p_first,
     'last': _p_last
@@ -26,5 +36,6 @@ PSEUDO = {
 
 
 FUNCTIONS = {
-    'nth-child': _f_nth
+    'nth-child': _f_nth,
+    'attr': _f_attr
 }

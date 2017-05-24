@@ -19,7 +19,7 @@ def _test_pad(*args):
 class TestParser(TestCase):
     def test_wildcard(self):
         for t in _test_pad('*'):
-            self.assertEqual(parse(t), [[(OP.CHILD,), (OP.CHILD,)]])
+            self.assertEqual(parse(t), [[(OP.CHILD,), (OP.ANY,)]])
 
     def test_basic_tag(self):
         for tag in VALID_IDENTS:
