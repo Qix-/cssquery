@@ -111,8 +111,13 @@ def _transform(step, obj, fns):
                 yield child
     elif op == OP.EVAL:
         for child in obj:
-            if bool(eval(value, {}, vars(child))):
-                yield child
+            try:
+                if bool(eval(value, child if type(child) is dict else vars(child))):
+                    yield child
+            except NameError:
+                pass
+            except KeyError:
+                pass
     elif op == OP.PSEUDO:
         if value not in PSEUDO:
             raise CssQueryError('not a valid pseudo selector: {}'.format(value))
