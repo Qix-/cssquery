@@ -3,7 +3,8 @@ from __future__ import absolute_import
 import functools
 import inspect
 
-from .parser import parse_selector
+from .error import CssQueryError
+from .parser import parse, OP
 
 
 def _isiterable(obj):
@@ -13,7 +14,7 @@ def _isiterable(obj):
 def _get_tag(obj):
     if obj is None:
         return None
-    if callable(obj.__cq_tag__):
+    if callable(getattr(obj, '__cq_tag__', None)):
         return obj.__cq_tag__()
     if inspect.isclass(obj):
         return obj.__class__.__name__
@@ -23,7 +24,7 @@ def _get_tag(obj):
 def _get_children(obj):
     if obj is None:
         return None
-    if callable(obj.__cq_children__):
+    if callable(getattr(obj, '__cq_children__', None)):
         return obj.__cq_children__()
     if _isiterable(obj):
         return (x for x in obj)
@@ -33,7 +34,7 @@ def _get_children(obj):
 def _get_id(obj):
     if obj is None:
         return None
-    if callable(obj.__cq_id__):
+    if callable(getattr(obj, '__cq_id__', None)):
         return obj.__cq_id__()
     return None
 
@@ -41,7 +42,7 @@ def _get_id(obj):
 def _get_class(obj, k):
     if obj is None:
         return False
-    if callable(obj.__cq_class__):
+    if callable(getattr(obj, '__cq_class__', None)):
         return obj.__cq_class__(k)
     return bool(getattr(obj, k, False))
 
@@ -49,7 +50,7 @@ def _get_class(obj, k):
 def _get_attr(obj, k):
     if obj is None:
         return None
-    if callable(obj.__cq_attr__):
+    if callable(getattr(obj, '__cq_attr__', None)):
         return obj.__cq_attr__(k)
     return getattr(obj, k, None)
 
@@ -73,31 +74,35 @@ class _objset(object):
         self.items.append(obj)
 
 
-COMBINATORS = {
-}
+def _all_children(obj, childfn):
+    yield obj
+    for child in childfn(obj) or ():
+        yield child
+        for subchild in _all_children(child, childfn):
+            yield subchild
 
 
-def _subquery(selector, obj, results, tagfn, childfn, idfn, classfn, attrfn):
-    if not _isiterable(obj):
-        obj = [obj]
+def _transform(step, obj, fns):
+    op = step[0]
+    value = step[1] if len(step) > 1 else None
 
-    if isinstance(selector, csp.Element):
-        for o in obj:
-            if tagfn(o) is selector.element:
-                results.add(o)
-        return
+    if op == OP.CHILD:
+        for child in _all_children(obj, fns['childfn']):
+            yield child
+    elif op == OP.TAG:
+        for child in fns['childfn'](obj) or ():
+            if fns['tagfn'](child) == value:
+                yield child
+    else:
+        raise CssQueryError('bad operation: {}'.format(step))
 
-    if isinstance(selector, csp.CombinedSelector):
-        subresults = _objset()
-        for o in obj:
-            _subquery(selector.selector, o, subresults, tagfn, childfn, idfn, classfn, attrfn)
 
-        combinatorfn = COMBINATORS.get(selector.combinator)
-        if not combinatorfn:
-            raise Exception('unsupported combinator: \'{}\''.format(selector.combinator))
+def _subquery(selector, obj, result, fns):
+    for step in selector:
+        obj = _transform(step, obj, fns)
 
-        for subresult in subresults.items:
-
+    for child in obj:
+        result.add(child)
 
 
 class PrecompiledSelector(object):
@@ -105,22 +110,24 @@ class PrecompiledSelector(object):
         self._selector = selector
         self._fns = dict(tagfn=tagfn, childfn=childfn, idfn=idfn, classfn=classfn, attrfn=attrfn)
 
-    def query(self, obj):
+    def query(self, objs):
         result = _objset()
 
         # because self._selector is actually an array of
         # selectors.
-        for selector in self._selector:
-            _subquery(selector.parsed_tree, obj, result, **self._fns)
+        for obj in objs:
+            for selector in self._selector:
+                _subquery(selector, obj, result, self._fns)
 
         return result.items
 
 
 @functools.lru_cache()
-def precompile(select_string, tagfn=_get_tag, childfn=_get_children, idfn=_get_id, classfn=_get_class, attrfn=_get_attr):
-    import cssselect
-    return PrecompiledSelector(cssselect.parse(select_string))
+def precompile(select_string):
+    return PrecompiledSelector(parse(select_string))
 
 
-def query(select_string, obj, tagfn=_get_tag, childfn=_get_children, idfn=_get_id, classfn=_get_class, attrfn=_get_attr):
-    return precompile(select_string).query(obj)
+def query(select_string, objs, tagfn=_get_tag, childfn=_get_children, idfn=_get_id, classfn=_get_class, attrfn=_get_attr):
+    if not _isiterable(objs):
+        raise CssQueryError('objs must be an iterable of objects: {}'.format(objs))
+    return precompile(select_string).query((x for x in objs))

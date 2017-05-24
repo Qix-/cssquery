@@ -11,7 +11,7 @@ class Tag(object):
         return self._tag
 
     def __cq_children__(self):
-        return self.children
+        return getattr(self, 'children', None)
 
     def __cq_id__(self):
         return self.id
@@ -26,22 +26,22 @@ class Tag(object):
 class TestCssQuery(TestCase):
     def test_same_object(self):
         test = Tag('foo')
-        self.assertEqual(query('foo', test), [test])
+        self.assertEqual(query('foo', [test]), [test])
 
     def test_same_object_precomp(self):
         test = Tag('foo')
         sel = precompile('foo')
-        self.assertEqual(sel.query(test), [test])
+        self.assertEqual(sel.query([test]), [test])
 
     def test_child_object(self):
         test = Tag('foo')
         bar = Tag('bar')
         test.children = [bar]
-        self.assertEqual(query('foo bar', test), [bar])
+        self.assertEqual(query('foo bar', [test]), [bar])
 
     def test_child_object_precomp(self):
         test = Tag('foo')
         bar = Tag('bar')
         test.children = [bar]
         sel = precompile('foo bar')
-        self.assertEqual(sel.query(test), [bar])
+        self.assertEqual(sel.query([test]), [bar])
