@@ -19,64 +19,64 @@ def _test_pad(*args):
 class TestParser(TestCase):
     def test_wildcard(self):
         for t in _test_pad('*'):
-            self.assertEqual(parse(t), [[(OP.ANY,)]])
+            self.assertEqual(parse(t), [[(OP.CHILD,), (OP.CHILD,)]])
 
     def test_basic_tag(self):
         for tag in VALID_IDENTS:
             for t in _test_pad(tag):
-                self.assertEqual(parse(t), [[(OP.TAG, tag)]])
+                self.assertEqual(parse(t), [[(OP.CHILD,), (OP.TAG, tag)]])
 
     def test_basic_id(self):
         for i in VALID_IDENTS:
             for t in _test_pad('#' + i):
-                self.assertEqual(parse(t), [[(OP.ID, i)]])
+                self.assertEqual(parse(t), [[(OP.CHILD,), (OP.ID, i)]])
 
     def test_basic_class(self):
         for cls in VALID_IDENTS:
             for t in _test_pad('.' + cls):
-                self.assertEqual(parse(t), [[(OP.CLASS, cls)]])
+                self.assertEqual(parse(t), [[(OP.CHILD,), (OP.CLASS, cls)]])
 
     def test_tag_id(self):
         for tag in VALID_IDENTS:
             for i in VALID_IDENTS:
                 for t in _test_pad('{}#{}'.format(tag, i)):
-                    self.assertEqual(parse(t), [[(OP.TAG, tag), (OP.ID, i)]])
+                    self.assertEqual(parse(t), [[(OP.CHILD,), (OP.TAG, tag), (OP.ID, i)]])
 
     def test_multi_class(self):
         for c1 in VALID_IDENTS:
             for c2 in VALID_IDENTS:
                 for t in _test_pad('.{}.{}'.format(c1, c2)):
-                    self.assertEqual(parse(t), [[(OP.CLASS, c1), (OP.CLASS, c2)]])
+                    self.assertEqual(parse(t), [[(OP.CHILD,), (OP.CLASS, c1), (OP.CLASS, c2)]])
 
     def test_id_class(self):
         for i in VALID_IDENTS:
             for cls in VALID_IDENTS:
                 for t in _test_pad('#{}.{}'.format(i, cls)):
-                    self.assertEqual(parse(t), [[(OP.ID, i), (OP.CLASS, cls)]])
+                    self.assertEqual(parse(t), [[(OP.CHILD,), (OP.ID, i), (OP.CLASS, cls)]])
 
     def test_multiple_tags(self):
         for tag in VALID_IDENTS:
             for tag2 in VALID_IDENTS:
                 for t in _test_pad(tag, tag2):
-                    self.assertEqual(parse(t), [[(OP.TAG, tag), (OP.CHILD,), (OP.TAG, tag2)]])
+                    self.assertEqual(parse(t), [[(OP.CHILD,), (OP.TAG, tag), (OP.CHILD,), (OP.TAG, tag2)]])
 
     def test_multiple_selectors(self):
         for tag in VALID_IDENTS:
             for i in VALID_IDENTS:
                 for t in _test_pad(tag, '#' + i, ',', '{}#{}'.format(tag, i)):
-                    self.assertEqual(parse(t), [[(OP.TAG, tag), (OP.CHILD,), (OP.ID, i)], [(OP.TAG, tag), (OP.ID, i)]])
+                    self.assertEqual(parse(t), [[(OP.CHILD,), (OP.TAG, tag), (OP.CHILD,), (OP.ID, i)], [(OP.CHILD,), (OP.TAG, tag), (OP.ID, i)]])
 
     def test_evals(self):
         for tag in VALID_IDENTS:
             for ev in VALID_EXPRS:
                 for t in _test_pad('{}[{}]'.format(tag, ev)):
-                    self.assertEqual(parse(t), [[(OP.TAG, tag), (OP.EVAL, ev)]])
+                    self.assertEqual(parse(t), [[(OP.CHILD,), (OP.TAG, tag), (OP.EVAL, ev)]])
 
     def test_pseudos(self):
         for tag in VALID_IDENTS:
             for psu in VALID_IDENTS:
                 for t in _test_pad('{}:{}'.format(tag, psu)):
-                    self.assertEqual(parse(t), [[(OP.TAG, tag), (OP.PSEUDO, psu)]])
+                    self.assertEqual(parse(t), [[(OP.CHILD,), (OP.TAG, tag), (OP.PSEUDO, psu)]])
 
     def test_functions(self):
         for tag in VALID_IDENTS:
@@ -84,27 +84,30 @@ class TestParser(TestCase):
                 # use re-use valid expressions here
                 for fn_args in VALID_EXPRS:
                     for t in _test_pad('{}:{}({})'.format(tag, fn_name, fn_args)):
-                        self.assertEqual(parse(t), [[(OP.TAG, tag), (OP.FN, (fn_name, fn_args))]])
+                        self.assertEqual(parse(t), [[(OP.CHILD,), (OP.TAG, tag), (OP.FN, (fn_name, fn_args))]])
 
     def test_direct_child(self):
         for tag in VALID_IDENTS:
             for t in _test_pad(tag, '>', tag):
-                self.assertEqual(parse(t), [[(OP.TAG, tag), (OP.CHILD_DIRECT,), (OP.TAG, tag)]])
+                self.assertEqual(parse(t), [[(OP.CHILD,), (OP.TAG, tag), (OP.CHILD_DIRECT,), (OP.TAG, tag)]])
 
     def test_direct_sibling(self):
         for tag in VALID_IDENTS:
             for t in _test_pad(tag, '+', tag):
-                self.assertEqual(parse(t), [[(OP.TAG, tag), (OP.SIBLING_DIRECT,), (OP.TAG, tag)]])
+                self.assertEqual(parse(t), [[(OP.CHILD,), (OP.TAG, tag), (OP.SIBLING_DIRECT,), (OP.TAG, tag)]])
 
     def test_sibling(self):
         for tag in VALID_IDENTS:
             for t in _test_pad(tag, '~', tag):
-                self.assertEqual(parse(t), [[(OP.TAG, tag), (OP.SIBLING,), (OP.TAG, tag)]])
+                self.assertEqual(parse(t), [[(OP.CHILD,), (OP.TAG, tag), (OP.SIBLING,), (OP.TAG, tag)]])
 
     def test_complex(self):
         self.assertEqual(parse('foo#bar.mcgee:blah(x*(4+5)+n)'),
-            [[(OP.TAG, 'foo'), (OP.ID, 'bar'), (OP.CLASS, 'mcgee'), (OP.FN, ('blah', 'x*(4+5)+n'))]])
+            [[(OP.CHILD,), (OP.TAG, 'foo'), (OP.ID, 'bar'), (OP.CLASS, 'mcgee'), (OP.FN, ('blah', 'x*(4+5)+n'))]])
+
         self.assertEqual(parse(':not(disconnected) .node.function #foobar:nth-child(10) ~ struct.pod, struct.pod[len(children) > 10]'),
-            [[(OP.FN, ('not', 'disconnected')), (OP.CHILD,), (OP.CLASS, 'node'), (OP.CLASS, 'function'), (OP.CHILD,),
+            [[(OP.CHILD,), (OP.FN, ('not', 'disconnected')), (OP.CHILD,), (OP.CLASS, 'node'), (OP.CLASS, 'function'), (OP.CHILD,),
               (OP.ID, 'foobar'), (OP.FN, ('nth-child', '10')), (OP.SIBLING,), (OP.TAG, 'struct'), (OP.CLASS, 'pod')],
-             [(OP.TAG, 'struct'), (OP.CLASS, 'pod'), (OP.EVAL, 'len(children) > 10')]])
+             [(OP.CHILD,), (OP.TAG, 'struct'), (OP.CLASS, 'pod'), (OP.EVAL, 'len(children) > 10')]])
+
+        self.assertEqual(parse('> #foo'), [[(OP.CHILD_DIRECT,), (OP.ID, 'foo')]])

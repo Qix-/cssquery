@@ -3,6 +3,8 @@ from __future__ import absolute_import
 import functools
 import inspect
 
+from .parser import parse_selector
+
 
 def _isiterable(obj):
     return hasattr(obj, '__iter__')

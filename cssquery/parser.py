@@ -5,7 +5,6 @@ from .error import CssQueryError
 
 
 OP = enum(
-    'ANY',
     'TAG',
     'CLASS',
     'ID',
@@ -109,31 +108,41 @@ class TokenIterator(object):
 
 def parse_selector(itr, terminator, selectors=None):
     if selectors is None:
-        selectors = []
+        selectors = [(OP.CHILD,)]
 
     itr.burn('WS')
 
-    while True:
+    pushed_child = True
+    while itr.name and itr.name is not terminator:
         if itr.name is 'WS':
             itr.burn('WS')
-            if itr.token and itr.name is not terminator:
-                operation = OP.CHILD
-                if itr.name is 'PLUS':
-                    operation = OP.SIBLING_DIRECT
-                    itr.next()
-                elif itr.name is 'GT':
-                    operation = OP.CHILD_DIRECT
-                    itr.next()
-                elif itr.name is 'TILDE':
-                    operation = OP.SIBLING
-                    itr.next()
-
-                itr.burn('WS')
-                selectors.append((operation,))
-                parse_selector(itr, terminator, selectors)
-            break
+            if itr.token:
+                selectors.append((OP.CHILD,))
+                pushed_child = True
+            continue
+        elif itr.name is 'PLUS':
+            if pushed_child:
+                selectors.pop()
+            selectors.append((OP.SIBLING_DIRECT,))
+            itr.next()
+            itr.burn('WS')
+            continue
+        elif itr.name is 'GT':
+            if pushed_child:
+                selectors.pop()
+            selectors.append((OP.CHILD_DIRECT,))
+            itr.next()
+            itr.burn('WS')
+            continue
+        elif itr.name is 'TILDE':
+            if pushed_child:
+                selectors.pop()
+            selectors.append((OP.SIBLING,))
+            itr.next()
+            itr.burn('WS')
+            continue
         elif itr.name is 'STAR':
-            selectors.append((OP.ANY,))
+            selectors.append((OP.CHILD,))
         elif itr.name is 'IDENT':
             selectors.append((OP.TAG, itr.value))
         elif itr.name is 'SHARP':
@@ -153,12 +162,13 @@ def parse_selector(itr, terminator, selectors=None):
         else:
             itr.unexpected()
 
+        pushed_child = False
         itr.next()
 
-        if itr.name is None or itr.name is terminator:
-            break
+    if pushed_child:
+        selectors.pop()
 
-    return selectors if len(selectors) > 0 else None
+    return selectors if len(selectors) > 1 else ()
 
 
 def parse(source):
