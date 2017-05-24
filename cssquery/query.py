@@ -2,9 +2,14 @@ from __future__ import absolute_import
 
 import functools
 import inspect
+import types
 
 from .error import CssQueryError
 from .parser import parse, OP
+from .pseudo import PSEUDO, FUNCTIONS
+
+
+STRING_TYPES = getattr(types, 'StringTypes', (str, bytes, bytearray))
 
 
 def _isiterable(obj):
@@ -26,7 +31,9 @@ def _get_children(obj):
         return None
     if callable(getattr(obj, '__cq_children__', None)):
         return obj.__cq_children__()
-    if _isiterable(obj):
+    if type(obj) is dict:
+        return obj.values()
+    if _isiterable(obj) and not isinstance(obj, STRING_TYPES):
         return (x for x in obj)
     return None
 
@@ -44,15 +51,9 @@ def _get_class(obj, k):
         return False
     if callable(getattr(obj, '__cq_class__', None)):
         return obj.__cq_class__(k)
-    return bool(getattr(obj, k, False))
-
-
-def _get_attr(obj, k):
-    if obj is None:
-        return None
-    if callable(getattr(obj, '__cq_attr__', None)):
-        return obj.__cq_attr__(k)
-    return getattr(obj, k, None)
+    if type(obj) is dict:
+        return obj.get(k, False)
+    return getattr(obj, k, False)
 
 
 class _objset(object):
@@ -89,11 +90,38 @@ def _transform(step, obj, fns):
     if op == OP.CHILD:
         for child in _all_children(obj, fns['childfn']):
             yield child
-    elif op == OP.TAG:
+    elif op == OP.CHILD_DIRECT:
         for child in fns['childfn'](obj) or ():
+            yield child
+    elif op == OP.TAG:
+        for child in obj:
             if fns['tagfn'](child) == value:
                 yield child
+    elif op == OP.CLASS:
+        for child in obj:
+            if bool(fns['classfn'](child, value)):
+                yield child
+    elif op == OP.ID:
+        for child in obj:
+            if fns['idfn'](child) == value:
+                yield child
+    elif op == OP.EVAL:
+        for child in obj:
+            if bool(eval(value, {}, vars(child))):
+                yield child
+    elif op == OP.PSEUDO:
+        if value not in PSEUDO:
+            raise CssQueryError('not a valid pseudo selector: {}'.format(value))
+        for child in PSEUDO[value](obj):
+            yield child
+    elif op == OP.FN:
+        name, args = value
+        if name not in FUNCTIONS:
+            raise CssQueryError('not a valid function: {}({})'.format(name, args))
+        for child in FUNCTIONS[name](obj, args):
+            yield child
     else:
+        # TODO implement sibling operator :|
         raise CssQueryError('bad operation: {}'.format(step))
 
 
@@ -106,9 +134,9 @@ def _subquery(selector, obj, result, fns):
 
 
 class PrecompiledSelector(object):
-    def __init__(self, selector, tagfn=_get_tag, childfn=_get_children, idfn=_get_id, classfn=_get_class, attrfn=_get_attr):
+    def __init__(self, selector, tagfn=_get_tag, childfn=_get_children, idfn=_get_id, classfn=_get_class):
         self._selector = selector
-        self._fns = dict(tagfn=tagfn, childfn=childfn, idfn=idfn, classfn=classfn, attrfn=attrfn)
+        self._fns = dict(tagfn=tagfn, childfn=childfn, idfn=idfn, classfn=classfn)
 
     def query(self, objs):
         result = _objset()
@@ -127,7 +155,7 @@ def precompile(select_string):
     return PrecompiledSelector(parse(select_string))
 
 
-def query(select_string, objs, tagfn=_get_tag, childfn=_get_children, idfn=_get_id, classfn=_get_class, attrfn=_get_attr):
-    if not _isiterable(objs):
-        raise CssQueryError('objs must be an iterable of objects: {}'.format(objs))
+def query(select_string, objs, tagfn=_get_tag, childfn=_get_children, idfn=_get_id, classfn=_get_class):
+    if type(objs) is not list:
+        raise CssQueryError('objs must be a list of objects: {}'.format(objs))
     return precompile(select_string).query((x for x in objs))

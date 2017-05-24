@@ -1,6 +1,9 @@
+import sys
 from unittest import TestCase
 
 from cssquery import precompile, query
+
+sys.setrecursionlimit(10**6)
 
 
 class Tag(object):
@@ -18,9 +21,6 @@ class Tag(object):
 
     def __cq_class__(self, cls):
         return bool(getattr(self, cls, False))
-
-    def __cq_attr__(self, k):
-        return getattr(self, k, None)
 
 
 class TestCssQuery(TestCase):
@@ -45,3 +45,7 @@ class TestCssQuery(TestCase):
         test.children = [bar]
         sel = precompile('foo bar')
         self.assertEqual(sel.query([test]), [bar])
+
+    def test_simple_obj(self):
+        qix = {'qix': 42, 'enabled': True}
+        self.assertEqual(query('.enabled', [{'foo': 'bar', 'qux': qix, 'baz': {'enabled': False}}]), [qix])
