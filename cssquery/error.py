@@ -1,0 +1,2 @@
+class CssQueryError(Exception):
+    pass
